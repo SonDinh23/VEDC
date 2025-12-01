@@ -49,20 +49,13 @@
   - Ethernet MAC, TWAI® (compatible with ISO 11898-1, i.e. CAN 2.0 Specifications)
 - Torex Semiconductor [XC6220B331MR-G](https://www.farnell.com/datasheets/2012852.pdf) 1A, 3.3V low-noise LDO regulator with GreenOperation mode for efficient system 3V3 power rail
 - Silicon Labs [CP2102N-A02-GQFN28](https://www.silabs.com/documents/public/data-sheets/cp2102n-datasheet.pdf) USB-to-UART bridge for programming, logging and debug over USB-C
-
-
-
-- Bosch [BMP581](https://www.bosch-sensortec.com/products/environmental-sensors/pressure-sensors/bmp581/) High performance pressure sensor accuracy in units of ~20cm's
-- IMU ST [LSM6DSLTR](https://www.st.com/content/ccc/resource/technical/document/datasheet/ee/23/a0/dc/1d/68/45/52/DM00237456.pdf/files/DM00237456.pdf/jcr:content/translations/en.DM00237456.pdf), with this one it's possible to do many fancy things such as navigation using gestures and the typical smartwatch wakeup by moving the arm so the display is viewable
-- ST [LIS3MDLTR](https://www.st.com/content/ccc/resource/technical/document/datasheet/54/2a/85/76/e3/97/42/18/DM00075867.pdf/files/DM00075867.pdf/jcr:content/translations/en.DM00075867.pdf) Magnetometer
-- Broadcom [APDS-9306-065](https://docs.broadcom.com/docs/AV02-4755EN) Light Sensor for automatic brightness control
-- Knowles [SPK0641HT4H-1](https://www.knowles.com/docs/default-source/model-downloads/spk0641ht4h-1-rev-a.pdf) I2S microphone for audio recording
-- Micro Crystal [RV-8263-C8](https://www.microcrystal.com/en/products/real-time-clock-rtc-modules/rv-8263-c8) RTC for time keeping and alarm functions
-- Texas Instruments [ADS1115IRUGR](https://www.ti.com/lit/ds/symlink/ads1115.pdf) 16-bit, 4-channel I²C ADC for high-resolution sensor and battery voltage measurements
-- Texas Instruments [DRV2603RUNT](https://www.ti.com/lit/gpn/drv2603) haptic driver for LRA/ERM vibration motor feedback
-- Worldsemi [WS2812B](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf) individually-addressable RGB LED (integrated driver) for watch notification and status lighting
-- Japan Display [LPM013M126A](https://international.switch-science.com/do/medialibrary/2016/08/LPM013M126A_specification_Ver01_20160720.pdf) 1.28" 176×176 Memory-in-Pixel TFT with custom LED backlight for the main watch display
-
+- Worldsemi [WS2812B-2020](https://www.mouser.com/pdfDocs/WS2812B-2020_V10_EN_181106150240761.pdf) individually-addressable 2.0×2.0 mm RGB LED for compact notification and status lighting
+- Murata [PKMCS0909E4000-R1](https://pim.murata.com/en-us/pim/details/?partNum=PKMCS0909E4000-R1) SMD piezo buzzer for alarm tones and haptic-style audio feedback
+- Microchip [MCP3204](https://ww1.microchip.com/downloads/en/devicedoc/21298e.pdf) 4-channel, 12-bit SPI ADC for additional high-resolution analog sensor and battery voltage measurements
+- STMicroelectronics [LSM6DSL](https://www.st.com/resource/en/datasheet/lsm6dsl.pdf) 6-axis IMU (3-axis accelerometer + 3-axis gyroscope) for motion tracking, step counting and gesture detection
+- STMicroelectronics [LIS3MDL](https://www.st.com/resource/en/datasheet/lis3mdl.pdf) 3-axis magnetometer for electronic compass and absolute orientation reference
+- Analog Devices [AD8232](https://www.analog.com/media/en/technical-documentation/data-sheets/ad8232.pdf) single-lead ECG analog front-end for heart-rate and ECG signal acquisition
+- NanJing Top Power ASIC [TP4056](https://datasheet.lcsc.com/lcsc/1809261820_TOPPOWER-Nanjing-Extension-Microelectronics-TP4056-42-ESOP8_C16581.pdf) single-cell Li-Ion battery charger IC for USB-powered battery charging
 
 ### Firmware
     ⏳ Loading...
