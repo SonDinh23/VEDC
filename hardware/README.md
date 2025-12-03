@@ -1,9 +1,3 @@
-```markdown
-# 🔧 Hardware Reference
-
-This directory contains the hardware documentation for the VEDC project: schematics, PCB layouts and production files, plus photographic documentation for inspection and review. Each board is described in a self-contained section with: Overview, Quick specs, Key files, Design & test notes, and a photographic gallery.
-
-Navigation
 # 🔧 Hardware Reference
 
 This directory contains the hardware documentation for the VEDC project: schematics, PCB layouts and production files, plus photographic documentation for inspection and review. Each board is described in a self-contained section with: Overview, Quick specs, Key files, Design & test notes, and a photographic gallery.
@@ -187,58 +181,3 @@ Photographic gallery (PPG_V1.0)
 ---
 
 If you prefer additional formatting (one README per board, smaller thumbnails, or a printable table of BOM items), tell me which format you prefer and I'll update accordingly.
-
-- Description: The Main PCB is the project's central board responsible for power management, system control, and interconnection with sensor modules and peripherals. It typically provides regulated power rails (including battery charging and power path management), the main microcontroller (MCU) or system-on-module, signal routing to sensor front-ends (EMG, PPG), and various I/O interfaces such as USB, debug/programming headers, and connector footprints for expansion modules.
-- Key files:
-  - `MainPCB/MainPCB.kicad_sch` — schematic
-  - `MainPCB/MainPCB.kicad_pcb` — PCB layout
-  - `MainPCB/production/` — BOM, placement, netlist
-- Notes:
-  - Responsibilities: power distribution, system clocking, MCU programming/debug interfaces, and connector routing for sensors.
-  - Inspect BOM and placement files in `production/` before assembly.
-
-### Images (MainPCB)
-
-<div>
-  <img src="MainPCB/MainPCBtop1.png" alt="MainPCB top 1" style="width:30%; margin:4px;" />
-  <img src="MainPCB/MainPCBtop2.png" alt="MainPCB top 2" style="width:30%; margin:4px;" />
-  <img src="MainPCB/MainPCBtop3.png" alt="MainPCB top 3" style="width:30%; margin:4px;" />
-  <br/>
-  <img src="MainPCB/MainPCBbottom1.png" alt="MainPCB bottom 1" style="width:30%; margin:4px;" />
-  <img src="MainPCB/MainPCBbottom2.png" alt="MainPCB bottom 2" style="width:30%; margin:4px;" />
-  <img src="MainPCB/MainPCBbottom3.png" alt="MainPCB bottom 3" style="width:30%; margin:4px;" />
-</div>
-
----
-
-## PPG_V1.0
-
-- Description: The PPG (Photoplethysmography) sensor board measures optical changes in blood volume (used for heart rate and related metrics) using LEDs and a photodiode/phototransistor. Version `V1.0` is an early prototype; see schematic for LED drive and transimpedance amplifier details.
-- Key files:
-  - `PPG_V1.0/PPG_V1.0.kicad_sch` — schematic
-  - `PPG_V1.0/PPG_V1.0.kicad_pcb` — PCB layout
-  - `PPG_V1.0/production/` — BOM, placement, netlist
-- Notes:
-  - Typical usage: position sensor on tissue, tune LED current and amplifier gain for signal-to-noise tradeoffs.
-
-### Images (PPG_V1.0)
-
-<div>
-  <img src="PPG_V1.0/PPG_V1.0top1.png" alt="PPG top 1" style="width:30%; margin:4px;" />
-  <img src="PPG_V1.0/PPG_V1.0top2.png" alt="PPG top 2" style="width:30%; margin:4px;" />
-  <br/>
-  <img src="PPG_V1.0/PPG_V1.0bottom1.png" alt="PPG bottom 1" style="width:30%; margin:4px;" />
-  <img src="PPG_V1.0/PPG_V1.0bottom2.png" alt="PPG bottom 2" style="width:30%; margin:4px;" />
-</div>
-
----
-
-## Image & path notes
-
-- Use forward slashes `/` in image paths and keep paths relative to this README file.
-- Example (image in `hardware/EMGSensor/`): `![EMG front](EMGSensor/EMGSensorTop1.png)`
-- If images do not appear on GitHub, ensure they are committed and pushed.
-
----
-
-If you want captions, different layout (table, figure tags), or smaller/larger thumbnails, tell me which section to update and I'll change it. -->
