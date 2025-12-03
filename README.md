@@ -2,14 +2,14 @@
 
 <div align="center">
 
-<img src="resources\image\logoVitalx.png" alt="System diagram" width="350">
+<img src="resources/image/logoVitalx.png" alt="System diagram" width="350">
 
 [![License](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://opensource.org/license/gpl-3-0)
 [![LinkedIn](https://img.shields.io/badge/connect-LinkedIn-blue?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/dinhsonn)
 
 <p float="left">
-<img src="resources\image\Product_Camera_Side1.png" alt="Product_Camera_Side1" width="49%" object-fit="cover"/>
-<img src="resources\image\Product_Camera_Side2.png" alt="Product_Camera_Side2" width="49%" object-fit="cover"/>
+<img src="resources/image/Product_Camera_Side1.png" alt="Product_Camera_Side1" width="35%" style="object-fit:cover;"/>
+<img src="resources/image/Product_Camera_Side2.png" alt="Product_Camera_Side2" width="35%" style="object-fit:cover;"/>
 </p>
 <sub>
   Vedc v0.1 Front Top product (left), Front Bottom product (right)
@@ -17,8 +17,8 @@
 
 
 <p float="left">
-<img src="resources\image\Product_Camera_Side4.png" alt="Product_Camera_Side4" width="49%" object-fit="cover"/>
-<img src="resources\image\Product_Camera_Side3.png" alt="Product_Camera_Side3" width="49%" object-fit="cover"/>
+<img src="resources/image/Product_Camera_Side4.png" alt="Product_Camera_Side4" width="35%" style="object-fit:cover;"/>
+<img src="resources/image/Product_Camera_Side3.png" alt="Product_Camera_Side3" width="35%" style="object-fit:cover;"/>
 </p>
 <sub>
   Vedc v0.1 Back Top product (left), Back Bottom product (right)
@@ -31,7 +31,7 @@
   - [Table of content](#table-of-content)
   - [About](#about)
   - [Features](#features)
-    - [Hardware](#hardware)
+    - [Hardware](hardware/README.md)
     - [Firmware](#firmware)
     - [Software](#software)
   - [Environment, Compiling and running the code](#environment-compiling-and-running-the-code)
@@ -41,7 +41,25 @@
 
 ## Features
 
-### Hardware
+### [Hardware](hardware/README.md)
+
+The Hardware section contains complete, board-level documentation for the VEDC platform. It is written for engineers, reviewers and manufacturers and gathers each board's design files, manufacturing assets and photographic inspection images in one place.
+
+What's in this section:
+
+- Per-board documentation: `hardware/EMGSensor`, `hardware/MainPCB`, `hardware/PPG_V1.0` — each has schematics and PCB layouts.
+- Manufacturing assets: BOMs, pick-and-place and netlist files are stored under each board's `production/` folder.
+- Photographic galleries: top/bottom views and close-ups for review and QA.
+- Design notes & test tips: assembly, bring-up and measurement guidance for each board.
+- Quick specs: short, high-level summaries of role, interfaces and power requirements for each board.
+
+How to use:
+
+- Click the section title or open `hardware/README.md` to view the full per-board documentation.
+- To contribute images or fixes: add files under the appropriate board folder (`hardware/<BoardName>/`), then `git add`, `git commit` and `git push`.
+
+[Open full Hardware documentation](hardware/README.md)
+
 - ESP32-PICO-V3-02 ([ESP32-PICO-V3-02 Models](https://documentation.espressif.com/esp32-pico_series_datasheet_en.pdf))
   - Xtensa® dual-core 32-bit LX6 microprocessor, up to 240 MHz
   - 8 MB flash, 2 MB PSRAM
