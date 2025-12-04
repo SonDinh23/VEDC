@@ -25,67 +25,94 @@
 </sub>
 </div>
 
-## Table of content
+## Table of contents
 
-- [VEDC](#kwatch)
-  - [Table of content](#table-of-content)
-  - [About](#about)
-  - [Features](#features)
-    - [Hardware](hardware/README.md)
-    - [Firmware](#firmware)
-    - [Software](#software)
-  - [Environment, Compiling and running the code](#environment-compiling-and-running-the-code)
-  - [Writing apps for the Application Manager](#writing-apps-for-the-application-manager)
-  - [Licence GPL-3.0](#licence-gpl-30)
-  - [Thanks](#thanks)
+- [About](#about)
+- [Platform snapshot](#platform-snapshot)
+- [Features](#features)
+  - [Hardware](#hardware)
+  - [Firmware](#firmware)
+  - [Software](#software)
+- [Environment & build](#environment--build)
+- [Writing apps for the Application Manager](#writing-apps-for-the-application-manager)
+- [Licence GPL-3.0](#licence-gpl-30)
+- [Thanks](#thanks)
+
+## About
+
+VEDC is a wearable biomedical reference design that blends EMG, ECG, and PPG sensing in a developer-friendly package. The hardware stack is fully captured in KiCad, the firmware targets ESP32-PICO-V3-02 via PlatformIO, and all production assets live in this repo so you can reproduce the build or remix it for your own research.
+
+## Platform snapshot
+
+| Item | Detail |
+| --- | --- |
+| MCU | ESP32-PICO-V3-02 (dual-core Xtensa®, Wi-Fi + BLE, 8 MB flash, 2 MB PSRAM) |
+| Sensors | EMG analog front-end, ECG (AD8232), PPG module, 6-axis IMU, magnetometer |
+| Connectivity | Wi-Fi 2.4 GHz, Bluetooth v4.2, USB-C (CP2102N), TWAI®/CAN-ready |
+| Power | Single-cell Li-Ion + TP4056 charger + XC6220 LDO + smart power-path on MainPCB |
+| Target use | Physiology research, medical wearables prototyping, advanced hobby builds |
+
+### Core silicon & companion parts
+
+- ESP32-PICO-V3-02 ([datasheet](https://documentation.espressif.com/esp32-pico_series_datasheet_en.pdf)) with Xtensa® LX6 up to 240 MHz, Wi-Fi/BLE, Ethernet MAC and TWAI®.
+- Torex [XC6220B331MR-G](https://www.farnell.com/datasheets/2012852.pdf) 1 A, 3.3 V low-noise LDO for the digital rail.
+- Silicon Labs [CP2102N-A02-GQFN28](https://www.silabs.com/documents/public/data-sheets/cp2102n-datasheet.pdf) USB-to-UART bridge for flashing, logging and live telemetry.
+- Worldsemi [WS2812B-2020](https://www.mouser.com/pdfDocs/WS2812B-2020_V10_EN_181106150240761.pdf) RGB indicator, Murata [PKMCS0909E4000-R1](https://pim.murata.com/en-us/pim/details/?partNum=PKMCS0909E4000-R1) piezo buzzer, Microchip [MCP3204](https://ww1.microchip.com/downloads/en/devicedoc/21298e.pdf) SPI ADC.
+- ST [LSM6DSL](https://www.st.com/resource/en/datasheet/lsm6dsl.pdf) IMU + [LIS3MDL](https://www.st.com/resource/en/datasheet/lis3mdl.pdf) magnetometer for motion/orientation tracking.
+- Analog Devices [AD8232](https://www.analog.com/media/en/technical-documentation/data-sheets/ad8232.pdf) ECG AFE and a custom EMG front-end for bio-signal capture.
+- TPASIC [TP4056](https://datasheet.lcsc.com/lcsc/1809261820_TOPPOWER-Nanjing-Extension-Microelectronics-TP4056-42-ESOP8_C16581.pdf) charger IC for USB-powered Li-Ion management.
 
 ## Features
 
-### [Hardware](hardware/README.md)
+### Hardware
 
-The Hardware section contains complete, board-level documentation for the VEDC platform. It is written for engineers, reviewers and manufacturers and gathers each board's design files, manufacturing assets and photographic inspection images in one place.
+- Three KiCad projects: EMGSensor, MainPCB, and PPG_V1.0. Each board section includes schematics, PCB layout, manufacturing outputs, notes, and galleries.
+- Design focus on low-noise analog front-ends, modular interconnects, and easy probing during validation.
+- Production-ready assets: BOM, pick-and-place, netlist, and positional data are stored under every `production/` folder.
 
-What's in this section:
-
-- Per-board documentation: `hardware/EMGSensor`, `hardware/MainPCB`, `hardware/PPG_V1.0` — each has schematics and PCB layouts.
-- Manufacturing assets: BOMs, pick-and-place and netlist files are stored under each board's `production/` folder.
-- Photographic galleries: top/bottom views and close-ups for review and QA.
-- Design notes & test tips: assembly, bring-up and measurement guidance for each board.
-- Quick specs: short, high-level summaries of role, interfaces and power requirements for each board.
-
-How to use:
-
-- Click the section title or open `hardware/README.md` to view the full per-board documentation.
-- To contribute images or fixes: add files under the appropriate board folder (`hardware/<BoardName>/`), then `git add`, `git commit` and `git push`.
-
-[Open full Hardware documentation](hardware/README.md)
-
-- ESP32-PICO-V3-02 ([ESP32-PICO-V3-02 Models](https://documentation.espressif.com/esp32-pico_series_datasheet_en.pdf))
-  - Xtensa® dual-core 32-bit LX6 microprocessor, up to 240 MHz
-  - 8 MB flash, 2 MB PSRAM
-  - 802.11b/g/n, Bluetooth v4.2
-  - Ethernet MAC, TWAI® (compatible with ISO 11898-1, i.e. CAN 2.0 Specifications)
-- Torex Semiconductor [XC6220B331MR-G](https://www.farnell.com/datasheets/2012852.pdf) 1A, 3.3V low-noise LDO regulator with GreenOperation mode for efficient system 3V3 power rail
-- Silicon Labs [CP2102N-A02-GQFN28](https://www.silabs.com/documents/public/data-sheets/cp2102n-datasheet.pdf) USB-to-UART bridge for programming, logging and debug over USB-C
-- Worldsemi [WS2812B-2020](https://www.mouser.com/pdfDocs/WS2812B-2020_V10_EN_181106150240761.pdf) individually-addressable 2.0×2.0 mm RGB LED for compact notification and status lighting
-- Murata [PKMCS0909E4000-R1](https://pim.murata.com/en-us/pim/details/?partNum=PKMCS0909E4000-R1) SMD piezo buzzer for alarm tones and haptic-style audio feedback
-- Microchip [MCP3204](https://ww1.microchip.com/downloads/en/devicedoc/21298e.pdf) 4-channel, 12-bit SPI ADC for additional high-resolution analog sensor and battery voltage measurements
-- STMicroelectronics [LSM6DSL](https://www.st.com/resource/en/datasheet/lsm6dsl.pdf) 6-axis IMU (3-axis accelerometer + 3-axis gyroscope) for motion tracking, step counting and gesture detection
-- STMicroelectronics [LIS3MDL](https://www.st.com/resource/en/datasheet/lis3mdl.pdf) 3-axis magnetometer for electronic compass and absolute orientation reference
-- Analog Devices [AD8232](https://www.analog.com/media/en/technical-documentation/data-sheets/ad8232.pdf) single-lead ECG analog front-end for heart-rate and ECG signal acquisition
-- NanJing Top Power ASIC [TP4056](https://datasheet.lcsc.com/lcsc/1809261820_TOPPOWER-Nanjing-Extension-Microelectronics-TP4056-42-ESOP8_C16581.pdf) single-cell Li-Ion battery charger IC for USB-powered battery charging
+[Browse board documentation →](hardware/README.md)
 
 ### Firmware
-    ⏳ Loading...
+
+- ESP-IDF/PlatformIO stack targeting ESP32-PICO-V3-02 with FreeRTOS scheduling, NimBLE-based BLE services, USB-UART telemetry, and low-power modes.
+- Sensor pipelines for EMG/ECG/PPG including digital filtering, adaptive baseline tracking, and event triggers for motion artifacts.
+- Modular drivers housed under `firmware/Embedded/lib/` plus an application layer that streams metrics to BLE characteristics or logs via UART.
+- Includes board bring-up helpers (rail monitors, sensor self-tests) and a configurable command shell.
+
+[Read the full firmware guide →](firmware/README.md)
 
 ### Software
-    ⏳ Loading...
 
-## Environment, Compiling and running the code
-    ⏳ Loading...
+- Companion tooling (desktop/mobile) is planned to visualize BLE data streams, annotate sessions, and push OTA payloads.
+- Current repo includes assets and API constraints so third parties can prototype dashboards or research tools ahead of the official release.
+- Planned features: live waveform view, biomarker extraction scripts, and CSV export for MATLAB/Python workflows.
+
+Have tooling to share? Open an issue so we can link it here.
+
+## Environment & build
+
+### Requirements
+
+- VS Code with the PlatformIO IDE extension (or PlatformIO Core CLI).
+- Python 3.10+ (PlatformIO manages the toolchain, but Python is still required).
+- KiCad 7+ if you plan to edit the hardware.
+- Git LFS for large media assets (images/live captures).
+
+### Quick start
+
+1. Clone the repo: `git clone https://github.com/SonDinh23/VEDC.git && cd VEDC`.
+2. Open VS Code -> `firmware/` folder -> PlatformIO will auto-configure the environment.
+3. Build: `pio run` (or the PlatformIO Build button).
+4. Flash: connect the board over USB-C, then `pio run -t upload`.
+5. Monitor logs: `pio device monitor` for UART output, or use the BLE explorer of your choice to view live characteristics.
+6. Hardware tweaks: jump into `hardware/README.md` to pick the board you want to fabricate or review.
 
 ## Writing apps for the Application Manager
-    ⏳ Loading...
+
+- The Application Manager exposes hooks for real-time sensing apps (recording, feedback) and offline routines (log replay, calibration).
+- Apps are plain C++ modules that register tasks, BLE endpoints, and menu entries; use the existing patterns under `firmware/Embedded/src/` and supporting libraries in `firmware/Embedded/lib/` as templates.
+- Keep apps lightweight: offload heavy analytics to the companion software via BLE or UART streaming.
+- Submit a PR or discussion thread before merging new app types so we can document protocol additions for users.
 
 ## Licence GPL-3.0
 
@@ -96,4 +123,5 @@ This way, everyone can benefit from improvements built on top of this project.
 If this licence causes issues for your intended use, feel free to contact me – I’m open to discussing alternatives.
 
 ## Thanks
-    ⏳ Loading...
+
+Huge thanks to the open-source communities behind ESP-IDF, PlatformIO, KiCad, and the component vendors whose public documentation made reverse-engineering painless. Additional appreciation goes to early testers who provided waveform captures and enclosure feedback. Reach out if you want to be listed here or contribute design critiques.

@@ -1,183 +1,149 @@
 # 🔧 Hardware Reference
 
-This directory contains the hardware documentation for the VEDC project: schematics, PCB layouts and production files, plus photographic documentation for inspection and review. Each board is described in a self-contained section with: Overview, Quick specs, Key files, Design & test notes, and a photographic gallery.
+Reference hub for every PCB in the VEDC stack. Each section collects the essential narrative (what the board does), quick specs, manufacturing artifacts, bring-up notes and a gallery that matches the files committed to this repo.
 
-Navigation
+## 📌 At-a-glance
 
-- [EMGSensor](#emgsensor) — electromyography sensor module
-- [MainPCB](#mainpcb) — system/mainboard
-- [PPG_V1.0](#ppg_v10) — photoplethysmography sensor (prototype)
-
----
-
-## EMGSensor
-
-Overview
-
-The EMGSensor board acquires surface EMG (electromyography) signals. It conditions microvolt-to-millivolt level signals using a low-noise front-end and band-pass filtering, and provides protection and level conditioning before passing analog outputs to the MainPCB or an external ADC.
-
-Quick specs (typical)
-
-- Signal type: EMG (differential surface electrodes)
-- Signal level: microvolts → millivolts (front-end amplification)
-- Typical bandwidth: application-dependent; front-end implements band-pass filtering
-- Interface: analog outputs to `MainPCB` / ADC
-
-Key files
-
-- `EMGSensor/EMGSensor.kicad_sch` — schematic
-- `EMGSensor/EMGSensor.kicad_pcb` — PCB layout
-- `EMGSensor/production/` — BOM, placement and netlist files for manufacturing
-
-Design & test notes
-
-- Use short, shielded traces for electrode inputs and maintain a clear analog ground plane.
-- Verify input protection and common-mode range before connecting electrodes to live systems.
-- Tune filter corner frequencies according to the sampling rate and target EMG bandwidth.
-
-Photographic gallery (EMGSensor)
-
-Figures below use relative paths (from `hardware/README.md`) and include short captions for quick reference.
-
-<div>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="EMGSensor/EMGSensorTop1.png" alt="EMGSensor Top 1" style="width:100%;" />
-    <figcaption>Top — full module overview</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="EMGSensor/EMGSensorTop2.png" alt="EMGSensor Top 2" style="width:100%;" />
-    <figcaption>Top — amplifier/filter area</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="EMGSensor/EMGSensorTop3.png" alt="EMGSensor Top 3" style="width:100%;" />
-    <figcaption>Top — connector and mechanical features</figcaption>
-  </figure>
-  <br/>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="EMGSensor/EMGSensorBottom1.png" alt="EMGSensor Bottom 1" style="width:100%;" />
-    <figcaption>Bottom — solder side</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="EMGSensor/EMGSensorBottom2.png" alt="EMGSensor Bottom 2" style="width:100%;" />
-    <figcaption>Bottom — ground pours and vias</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="EMGSensor/EMGSensorBottom3.png" alt="EMGSensor Bottom 3" style="width:100%;" />
-    <figcaption>Bottom — component placement</figcaption>
-  </figure>
-</div>
+| Board | Functional role | Primary interfaces | Manufacturing kit |
+| --- | --- | --- | --- |
+| [EMGSensor](#emgsensor) | Surface EMG analog front-end with selectable filtering | Differential electrodes, analog output to MainPCB/ADC | `EMGSensor/*.kicad_*`, `EMGSensor/production/` |
+| [MainPCB](#mainpcb) | System backplane: power, MCU, sensor connectors & user IO | USB-C, SPI, I2C, GPIO, battery charger, programming header | `MainPCB/*.kicad_*`, `MainPCB/production/` |
+| [PPG_V1.0](#ppg_v10) | Optical heart-rate/SpO2 module (LED driver + TIA) | LED drive, photodiode TIA, analog output to MainPCB | `PPG_V1.0/*.kicad_*`, `PPG_V1.0/production/` |
 
 ---
 
-## MainPCB
+## 🧠 EMGSensor
 
-Overview
+### Highlights
+- Low-noise EMG front-end with band-pass filtering and input protection.
+- Differential electrode inputs converted to a conditioned analog output for the main MCU/ADC.
+- Designed to keep the analog ground plane quiet and isolated from digital switching noise.
 
-MainPCB is the central system board. It supplies regulated power rails, hosts the main processing subsystem (MCU or system module), and provides routing and connectors for sensor modules (EMG, PPG), user interfaces and programming/debugging headers.
+### Quick specs
 
-Quick specs (typical)
+| Parameter | Detail |
+| --- | --- |
+| Signal type | Differential surface EMG |
+| Input range | Microvolt → millivolt (depends on electrode placement) |
+| Bandwidth | Application-configurable band-pass |
+| Output | Analog to `MainPCB` or external ADC |
 
-- Role: power distribution, processing, peripheral hub
-- Power: battery charging, power-path management, regulated rails (3V3, etc.)
-- Interfaces: USB/serial, SPI, I2C, ADC inputs, GPIOs, programming headers
+### Manufacturing files
+- `EMGSensor/EMGSensor.kicad_sch`
+- `EMGSensor/EMGSensor.kicad_pcb`
+- `EMGSensor/production/` (BOM, placements, netlist, positions)
 
-Key files
+### Build & test checklist
+- Keep electrode traces short/shielded and preserve the analog ground island.
+- Verify input protection and supply rails before connecting electrodes to humans.
+- Adjust filter corners so they align with sampling rate and targeted muscle group.
 
-- `MainPCB/MainPCB.kicad_sch` — schematic
-- `MainPCB/MainPCB.kicad_pcb` — PCB layout
-- `MainPCB/production/` — BOM, placement and netlist files
+### Gallery
 
-Design & test notes
-
-- Review the `production/` BOM and placement files before assembly to confirm component variants and orientation.
-- Confirm mechanical mounting and keep-out areas if an enclosure is used.
-- Use test points for power rails and critical signals to simplify bring-up and debugging.
-
-Photographic gallery (MainPCB)
-
-<div>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="MainPCB/MainPCBtop1.png" alt="MainPCB top 1" style="width:100%;" />
-    <figcaption>Top — board overview</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="MainPCB/MainPCBtop2.png" alt="MainPCB top 2" style="width:100%;" />
-    <figcaption>Top — MCU and connectors</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="MainPCB/MainPCBtop3.png" alt="MainPCB top 3" style="width:100%;" />
-    <figcaption>Top — power subsystem</figcaption>
-  </figure>
-  <br/>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="MainPCB/MainPCBbottom1.png" alt="MainPCB bottom 1" style="width:100%;" />
-    <figcaption>Bottom — solder side</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="MainPCB/MainPCBbottom2.png" alt="MainPCB bottom 2" style="width:100%;" />
-    <figcaption>Bottom — ground pours & routing</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="MainPCB/MainPCBbottom3.png" alt="MainPCB bottom 3" style="width:100%;" />
-    <figcaption>Bottom — component placement</figcaption>
-  </figure>
-</div>
+<table>
+  <tr>
+    <td align="center"><img src="EMGSensor/EMGSensorTop1.png" alt="EMGSensor Top 1" width="260"><br><small>Top — module overview</small></td>
+    <td align="center"><img src="EMGSensor/EMGSensorTop2.png" alt="EMGSensor Top 2" width="260"><br><small>Top — amplifier/filter</small></td>
+    <td align="center"><img src="EMGSensor/EMGSensorTop3.png" alt="EMGSensor Top 3" width="260"><br><small>Top — connectors</small></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="EMGSensor/EMGSensorBottom1.png" alt="EMGSensor Bottom 1" width="260"><br><small>Bottom — solder side</small></td>
+    <td align="center"><img src="EMGSensor/EMGSensorBottom2.png" alt="EMGSensor Bottom 2" width="260"><br><small>Bottom — ground pours</small></td>
+    <td align="center"><img src="EMGSensor/EMGSensorBottom3.png" alt="EMGSensor Bottom 3" width="260"><br><small>Bottom — component placement</small></td>
+  </tr>
+</table>
 
 ---
 
-## PPG_V1.0
+## 🧭 MainPCB
 
-Overview
+### Highlights
+- Primary compute board with ESP32 module, battery charging/power-path management and sensor interconnects.
+- Hosts debug/programming headers, USB-UART bridge, IMU/ADC expansion headers and NeoPixel/buzzer drivers.
+- Provides regulated rails (3V3 etc.) and mounting keep-outs for future enclosures.
 
-The PPG_V1.0 board implements a photoplethysmography sensor. It includes LED drive and a transimpedance amplifier (TIA) to convert the photodetector current to a voltage suitable for digitization.
+### Quick specs
 
-Quick specs (typical)
+| Parameter | Detail |
+| --- | --- |
+| Core function | Power distribution + embedded processing |
+| Key rails | Battery, charger IC, 3V3 LDO, load switches |
+| Interfaces | USB/serial, SPI, I2C, ADC, GPIO, programming header |
 
-- Role: optical heart-rate / blood-volume sensing
-- Key blocks: LED driver, photodetector + TIA, analog conditioning
-- Interface: analog outputs to `MainPCB` / ADC
+### Manufacturing files
+- `MainPCB/MainPCB.kicad_sch`
+- `MainPCB/MainPCB.kicad_pcb`
+- `MainPCB/production/` (BOM, placements, netlist, positions)
 
-Key files
+### Build & test checklist
+- Cross-check BOM vs placement before assembly to avoid variant mix-ups.
+- Validate mechanical clearances/keep-outs when fitting into an enclosure.
+- Probe test points for each rail during bring-up; confirm charger and LDO thermals.
 
-- `PPG_V1.0/PPG_V1.0.kicad_sch` — schematic
-- `PPG_V1.0/PPG_V1.0.kicad_pcb` — PCB layout
-- `PPG_V1.0/production/` — BOM, placement and netlist files
+### Gallery
 
-Design & test notes
-
-- Place LEDs and photodetector to minimize optical crosstalk and maximize contact with tissue.
-- Tune LED current and TIA feedback for SNR vs power consumption trade-offs.
-
-Photographic gallery (PPG_V1.0)
-
-<div>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="PPG_V1.0/PPG_V1.0top1.png" alt="PPG top 1" style="width:100%;" />
-    <figcaption>Top — overview</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="PPG_V1.0/PPG_V1.0top2.png" alt="PPG top 2" style="width:100%;" />
-    <figcaption>Top — LED / receiver area</figcaption>
-  </figure>
-  <br/>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="PPG_V1.0/PPG_V1.0bottom1.png" alt="PPG bottom 1" style="width:100%;" />
-    <figcaption>Bottom — solder side</figcaption>
-  </figure>
-  <figure style="display:inline-block; width:30%; margin:6px; text-align:center;">
-    <img src="PPG_V1.0/PPG_V1.0bottom2.png" alt="PPG bottom 2" style="width:100%;" />
-    <figcaption>Bottom — placement view</figcaption>
-  </figure>
-</div>
+<table>
+  <tr>
+    <td align="center"><img src="MainPCB/MainPCBtop1.png" alt="MainPCB top 1" width="260"><br><small>Top — overview</small></td>
+    <td align="center"><img src="MainPCB/MainPCBtop2.png" alt="MainPCB top 2" width="260"><br><small>Top — MCU & IO</small></td>
+    <td align="center"><img src="MainPCB/MainPCBtop3.png" alt="MainPCB top 3" width="260"><br><small>Top — power subsystem</small></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="MainPCB/MainPCBbottom1.png" alt="MainPCB bottom 1" width="260"><br><small>Bottom — solder side</small></td>
+    <td align="center"><img src="MainPCB/MainPCBbottom2.png" alt="MainPCB bottom 2" width="260"><br><small>Bottom — pours & routing</small></td>
+    <td align="center"><img src="MainPCB/MainPCBbottom3.png" alt="MainPCB bottom 3" width="260"><br><small>Bottom — placement</small></td>
+  </tr>
+</table>
 
 ---
 
-## Notes on images and paths
+## 💡 PPG_V1.0
 
-- Always use forward slashes `/` in image paths; paths in this file are relative to `hardware/README.md`.
-- Example: `![EMG front](EMGSensor/EMGSensorTop1.png)`
-- If images do not display on GitHub, ensure the files are added, committed and pushed to the remote repository.
+### Highlights
+- Dual-LED photoplethysmography front-end with transimpedance amplifier.
+- Layout keeps LED/photodiode path compact to reduce crosstalk and improve tissue coupling.
+- Analog output routes directly to MainPCB analog inputs or an external ADC.
+
+### Quick specs
+
+| Parameter | Detail |
+| --- | --- |
+| Role | Optical heart-rate / blood-volume sensing |
+| Key blocks | LED driver, photodetector + TIA, post-filtering |
+| Output | Analog to `MainPCB` / ADC |
+
+### Manufacturing files
+- `PPG_V1.0/PPG_V1.0.kicad_sch`
+- `PPG_V1.0/PPG_V1.0.kicad_pcb`
+- `PPG_V1.0/production/` (BOM, placements, netlist, positions)
+
+### Build & test checklist
+- Align LEDs and photodiode carefully; even small misalignments affect signal quality.
+- Tune LED current and TIA feedback for the target SNR vs power budget.
+- Shield the sensor head from ambient light during characterization.
+
+### Gallery
+
+<table>
+  <tr>
+    <td align="center"><img src="PPG_V1.0/PPG_V1.0top1.png" alt="PPG top 1" width="260"><br><small>Top — overview</small></td>
+    <td align="center"><img src="PPG_V1.0/PPG_V1.0top2.png" alt="PPG top 2" width="260"><br><small>Top — LED/receiver zone</small></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="PPG_V1.0/PPG_V1.0bottom1.png" alt="PPG bottom 1" width="260"><br><small>Bottom — solder side</small></td>
+    <td align="center"><img src="PPG_V1.0/PPG_V1.0bottom2.png" alt="PPG bottom 2" width="260"><br><small>Bottom — placement view</small></td>
+  </tr>
+</table>
 
 ---
 
-If you prefer additional formatting (one README per board, smaller thumbnails, or a printable table of BOM items), tell me which format you prefer and I'll update accordingly.
+## 🖼️ Image & path guidance
+
+- Use forward slashes `/` in Markdown image paths; all current links are relative to this README.
+- Example snippet: `![EMG front](EMGSensor/EMGSensorTop1.png)`.
+- GitHub renders images only after the corresponding PNG/SVG files are committed and pushed.
+- Need a different layout (per-board README, thumbnail sizes, PDF gallery)? Let me know and I can spin up that structure quickly.
+
+---
+
+_Last refreshed: see git history for author/date of the latest board update._
