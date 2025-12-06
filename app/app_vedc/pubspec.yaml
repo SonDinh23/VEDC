@@ -1,0 +1,80 @@
+name: app_vedc
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_native_splash: ^2.4.7
+  smooth_page_indicator: ^1.2.1
+  carousel_slider: ^5.1.1
+  curved_navigation_bar: ^1.0.6
+  fl_chart: ^1.1.1
+
+  # Bluetooth
+  flutter_blue_plus: ^2.0.2
+
+  # Icons
+  iconsax: ^0.0.8
+  cupertino_icons: ^1.0.2
+
+  # Image Picker
+  flutter_svg: ^2.2.3
+
+  # State Management
+  get: ^4.7.2
+  get_storage: ^2.1.1
+  shared_preferences: ^2.5.3
+
+#-----------------------./ PACKAGES END -----------------------#
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logos/logoiuh.png"
+
+flutter:
+  uses-material-design: true
+
+#----------------------- LOCAL ASSETS -----------------------#
+  assets:
+    - assets/images/logos/
+    - assets/images/on_boarding_images/
+    - assets/icons/Normals/
+    - assets/icons/Socials/
+    - assets/images/layouts/followHealthy/
+  fonts:
+    - family: Livvic
+      fonts:
+        - asset: assets/fonts/livvic/Livvic-Regular.ttf
+        - asset: assets/fonts/livvic/Livvic-Bold.ttf
+        - asset: assets/fonts/livvic/Livvic-SemiBold.ttf
+          weight: 700
+    - family: Quicksand
+      fonts:
+        - asset: assets/fonts/quicksand/Quicksand-Bold.ttf
+        - asset: assets/fonts/quicksand/Quicksand-Light.ttf
+        - asset: assets/fonts/quicksand/Quicksand-Medium.ttf
+        - asset: assets/fonts/quicksand/Quicksand-Regular.ttf
+        - asset: assets/fonts/quicksand/Quicksand-SemiBold.ttf
+          weight: 700
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/notosans/NotoSans-Italic-VariableFont_wdth,wght.ttf
+        - asset: assets/fonts/notosans/NotoSans-VariableFont_wdth,wght.ttf
+          weight: 700
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.ttf
+        - asset: assets/fonts/Roboto/Roboto-VariableFont_wdth,wght.ttf
+          weight: 700
