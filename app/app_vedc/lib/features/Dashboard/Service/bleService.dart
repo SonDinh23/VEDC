@@ -1,7 +1,4 @@
-import 'dart:async';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+// removed unused imports
 
 class BLEService {
   static const String advUUIDRing = "514bd5a1-1ef9-49c8-b569-127a84896d20";

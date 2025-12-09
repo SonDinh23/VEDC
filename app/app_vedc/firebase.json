@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"vedc-cloud","appId":"1:191966224888:android:e0217755f82846560bb60d","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"vedc-cloud","configurations":{"android":"1:191966224888:android:e0217755f82846560bb60d","ios":"1:191966224888:ios:1648736af8c5d1940bb60d"}}}}}}

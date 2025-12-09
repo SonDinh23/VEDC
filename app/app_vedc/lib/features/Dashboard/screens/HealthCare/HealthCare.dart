@@ -7,6 +7,7 @@ import 'package:app_vedc/features/Dashboard/screens/HealthCare/EMG_IMUSensor/EMG
 import 'package:app_vedc/features/Dashboard/screens/HealthCare/MultipleSensor/MultipleSensor.dart';
 import 'package:app_vedc/features/Dashboard/screens/HealthCare/PPGSensor/PPGSensor.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
+import 'package:app_vedc/utils/constants/sizes.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -55,10 +56,18 @@ class _OnHealthCareState extends State<OnHealthCare> {
       ),
     ];
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      for (final feature in _features) {
-        await precacheImage(feature.imageProvider, context);
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Precache images asynchronously in parallel so we don't block the
+      // first frame or cause layout jank by awaiting sequentially.
+      Future.microtask(() async {
+        try {
+          await Future.wait(
+            _features.map((f) => precacheImage(f.imageProvider, context)),
+          );
+        } catch (_) {
+          // Ignore precache errors
+        }
+      });
     });
   }
 
@@ -247,19 +256,34 @@ class _OnHealthCareState extends State<OnHealthCare> {
 
   PreferredSizeWidget appBar() {
     return AppBar(
-      backgroundColor: VedcColors.primary,
-      foregroundColor: VedcColors.white,
-      title: Text(
-        "Calibration",
-        style: const TextStyle(
-          color: VedcColors.white,
-          fontFamily: 'Livvic',
-          fontWeight: FontWeight.w700,
-          fontStyle: FontStyle.normal,
-          fontSize: 30,
-        ),
+      backgroundColor: VedcColors.background,
+      foregroundColor: VedcColors.textPrimary,
+      elevation: 0,
+      centerTitle: false,
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Calibration',
+            style: TextStyle(
+              color: VedcColors.textPrimary,
+              fontFamily: 'Livvic',
+              fontWeight: FontWeight.w700,
+              fontSize: 30,
+            ),
+          ),
+          SizedBox(height: VedcSizes.xs),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: VedcColors.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ],
       ),
-      centerTitle: true,
       actions: [
         IconButton(onPressed: () {}, icon: Icon(Icons.notifications_none)),
       ],
@@ -316,7 +340,10 @@ class _OnHealthCareState extends State<OnHealthCare> {
     return Scaffold(
       backgroundColor: VedcColors.background,
       appBar: appBar(),
-      body: Column(children: [titleCalibrate(), contentCalibrate()]),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
+        child: Column(children: [titleCalibrate(), contentCalibrate()]),
+      ),
     );
   }
 }

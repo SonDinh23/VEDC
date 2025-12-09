@@ -7,6 +7,7 @@ import 'package:app_vedc/features/Dashboard/Service/wearable_mode.dart';
 import 'package:app_vedc/features/Dashboard/Service/wearable_mode_service.dart';
 import 'package:app_vedc/features/Dashboard/screens/Home/scanDevice.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
+import 'package:app_vedc/utils/constants/sizes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -31,8 +32,17 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
 
   @override
   void dispose() {
+    // Cancel subscriptions/connections and update BLEController state
+    // without calling setState — calling setState inside dispose can
+    // cause the `_ElementLifecycle.defunct` assertion.
     BLEController.myoBandConnection?.cancel();
-    stopScan();
+    BLEController.scanController?.cancel();
+    BLEController.isScanningMyoBand = false;
+    BLEController.stateConnection = StateConnection.disconnected;
+    // Best-effort: stop underlying scan (can't await in dispose)
+    try {
+      FlutterBluePlus.stopScan();
+    } catch (_) {}
     super.dispose();
     dev.log('dispose');
   }
@@ -40,16 +50,24 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
   Future<void> checkFullConnection() async {
     // log('checkFullConnection');
     if (BLEController.myoBandState == BluetoothConnectionState.connected) {
-      setState(() {
+      if (mounted) {
+        setState(() {
+          BLEController.stateConnection = StateConnection.connected;
+        });
+      } else {
         BLEController.stateConnection = StateConnection.connected;
-      });
+      }
       if (BLEController.myoBandDevice != null) {
         await Future.delayed(const Duration(milliseconds: 800));
       }
     } else {
-      setState(() {
+      if (mounted) {
+        setState(() {
+          BLEController.stateConnection = StateConnection.disconnected;
+        });
+      } else {
         BLEController.stateConnection = StateConnection.disconnected;
-      });
+      }
     }
   }
 
@@ -59,12 +77,19 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
       state,
     ) async {
       dev.log('Device ${device.platformName} state: $state');
-      setState(() {
+      if (mounted) {
+        setState(() {
+          BLEController.myoBandState = state;
+          if (state == BluetoothConnectionState.connected) {
+            BLEController.isScanningMyoBand = false;
+          }
+        });
+      } else {
         BLEController.myoBandState = state;
         if (state == BluetoothConnectionState.connected) {
           BLEController.isScanningMyoBand = false;
         }
-      });
+      }
       if (state == BluetoothConnectionState.connected) {
         try {
           await MyoBandProcess.discover(device);
@@ -182,10 +207,15 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
         continuousDivisor: 2,
       );
 
-      setState(() {
+      if (mounted) {
+        setState(() {
+          BLEController.stateConnection = StateConnection.scanning;
+          BLEController.isScanningMyoBand = true;
+        });
+      } else {
         BLEController.stateConnection = StateConnection.scanning;
         BLEController.isScanningMyoBand = true;
-      });
+      }
 
       return;
     }
@@ -199,10 +229,16 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
   Future<void> stopScan() async {
     dev.log('stopScan');
     BLEController.scanController?.cancel();
-    setState(() {
+    // Avoid calling setState when the widget is already disposed.
+    if (mounted) {
+      setState(() {
+        BLEController.isScanningMyoBand = false;
+        BLEController.stateConnection = StateConnection.disconnected;
+      });
+    } else {
       BLEController.isScanningMyoBand = false;
       BLEController.stateConnection = StateConnection.disconnected;
-    });
+    }
 
     await FlutterBluePlus.stopScan();
   }
@@ -288,19 +324,34 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
 
   PreferredSizeWidget buildAppBar() {
     return AppBar(
-      backgroundColor: VedcColors.primary,
-      foregroundColor: VedcColors.white,
-      title: Text(
-        "Home",
-        style: const TextStyle(
-          color: VedcColors.white,
-          fontFamily: 'Livvic',
-          fontWeight: FontWeight.w700,
-          fontStyle: FontStyle.normal,
-          fontSize: 30,
-        ),
+      backgroundColor: VedcColors.background,
+      foregroundColor: VedcColors.textPrimary,
+      elevation: 0,
+      centerTitle: false,
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Home',
+            style: TextStyle(
+              color: VedcColors.textPrimary,
+              fontFamily: 'Livvic',
+              fontWeight: FontWeight.w700,
+              fontSize: 30,
+            ),
+          ),
+          SizedBox(height: VedcSizes.xs),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: VedcColors.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ],
       ),
-      centerTitle: true,
       actions: [
         IconButton(onPressed: () {}, icon: Icon(Icons.notifications_none)),
       ],
@@ -375,7 +426,7 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
                           fontFamily: 'Quicksand',
                           fontWeight: FontWeight.w900,
                           fontStyle: FontStyle.normal,
-                          fontSize: 28,
+                          fontSize: 25,
                         ),
                       ),
                       const SizedBox(height: 15),
@@ -561,9 +612,13 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
   }
 
   Widget buildBLEOnScreen() {
-    return Container(
+    // Use a scrollable column to avoid RenderFlex overflow on small screens
+    // or when additional UI (dialogs/overlays) changes available height.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [buildTitle(), buildDeviceList(), buildBtnScan()],
       ),
     );
@@ -668,7 +723,12 @@ class _OnDeviceUserState extends State<OnDeviceUser> {
           });
         },
         child: Container(
-          padding: EdgeInsets.all(10.0),
+          padding: EdgeInsets.only(
+            left: 130.0,
+            right: 130.0,
+            top: 10.0,
+            bottom: 10.0,
+          ),
           child: Container(
             width: 60,
             decoration: BoxDecoration(

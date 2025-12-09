@@ -20,8 +20,9 @@ class OnboardingDotNavigation extends StatelessWidget {
         onDotClicked: controller.dotNavigationClick,
         count: 3,
         effect: ExpandingDotsEffect(
-          activeDotColor: VedcColors.textPrimary,
+          activeDotColor: VedcColors.primary,
           dotHeight: 8,
+          dotColor: VedcColors.textSecondary.withValues(alpha: 0.25),
         ),
       ),
     );

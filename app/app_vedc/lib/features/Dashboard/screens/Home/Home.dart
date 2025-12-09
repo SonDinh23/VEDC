@@ -1,6 +1,5 @@
 import 'package:app_vedc/features/Dashboard/screens/HealthCare/HealthCare.dart';
 import 'package:app_vedc/features/Dashboard/screens/Home/deviceUser.dart';
-import 'package:app_vedc/features/Dashboard/screens/Home/scanDevice.dart';
 import 'package:app_vedc/features/Dashboard/screens/User/onUsers.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';

@@ -1,4 +1,5 @@
 import 'package:app_vedc/features/authentication/controllers_onboarding/onboarding_controller.dart';
+import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:app_vedc/utils/constants/sizes.dart';
 import 'package:flutter/material.dart';
 
@@ -12,7 +13,13 @@ class OnboardingSkip extends StatelessWidget {
       right: VedcSizes.defaultSpace,
       child: TextButton(
         onPressed: () => OnBoardingController.instance.skipPage(),
-        child: Text("Skip"),
+        child: const Text(
+          'Skip',
+          style: TextStyle(
+            color: VedcColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

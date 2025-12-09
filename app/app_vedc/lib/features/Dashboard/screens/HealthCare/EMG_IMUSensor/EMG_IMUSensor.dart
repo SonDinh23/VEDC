@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:app_vedc/features/Dashboard/Service/MyoBandProcess.dart';
 import 'package:app_vedc/features/Dashboard/Service/bleController.dart';
 import 'package:app_vedc/features/Dashboard/Service/bleService.dart';
 import 'package:app_vedc/features/Dashboard/screens/HealthCare/EMG_IMUSensor/widgets/emg_chart.dart';
+import 'package:app_vedc/features/Dashboard/screens/HealthCare/EMG_IMUSensor/data_emg_imu_screen.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_cube/flutter_cube.dart';
+import 'package:path_provider/path_provider.dart';
 
 class OnEMG_IMUSensor extends StatefulWidget {
   const OnEMG_IMUSensor({super.key});
@@ -21,6 +25,9 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
   static const _valueLabels = <String>['EMG', 'Roll', 'Pitch', 'Yaw', 'Time'];
   static const _imuLabels = <String>['Roll', 'Pitch', 'Yaw'];
   static const _emgIndex = 0;
+  static const _rollIndex = 1;
+  static const _pitchIndex = 2;
+  static const _yawIndex = 3;
   static const _timeIndex = 4;
   static const int _maxSamples = 300;
   static const double _maxEmgVisualValue = 1000;
@@ -59,6 +66,12 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
   Duration _recordDuration = const Duration(seconds: 30);
   Duration _recordElapsed = Duration.zero;
   Timer? _recordTimer;
+  bool _isSavingCsv = false;
+  String? _lastCsvPath;
+  Object? _imuObject;
+  Scene? _cubeScene;
+  double _cubeScale = 1.5;
+  double _scaleStart = 1.5;
 
   @override
   void initState() {
@@ -95,9 +108,13 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
     final device = BLEController.myoBandDevice;
     if (device == null ||
         BLEController.myoBandState != BluetoothConnectionState.connected) {
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _status = 'MyoBand chưa kết nối';
+        });
+      } else {
         _status = 'MyoBand chưa kết nối';
-      });
+      }
       return;
     }
 
@@ -113,22 +130,19 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
       await characteristic.setNotifyValue(true);
       _subscription = characteristic.onValueReceived.listen(
         _handleIncomingPacket,
-        onError: (Object error, StackTrace stackTrace) {
-          dev.log(
-            'EMG notify error: $error',
-            name: 'EMG_IMU',
-            error: error,
-            stackTrace: stackTrace,
-          );
-          setState(() => _status = 'Lỗi đọc dữ liệu: $error');
-        },
+        onError: (error, stack) => _handleStreamError(error, stack),
       );
       await characteristic.read();
 
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _characteristic = characteristic;
+          _status = 'Đang nhận dữ liệu realtime';
+        });
+      } else {
         _characteristic = characteristic;
         _status = 'Đang nhận dữ liệu realtime';
-      });
+      }
     } catch (e, stackTrace) {
       dev.log(
         'Không thể khởi tạo EMG stream: $e',
@@ -140,8 +154,21 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
       setState(() {
         _status = 'Không thể nhận dữ liệu: $e';
       });
+    } finally {
+      _isInitializing = false;
     }
-    _isInitializing = false;
+  }
+
+  void _handleStreamError(Object error, StackTrace? stackTrace) {
+    dev.log(
+      'EMG notify error: $error',
+      name: 'EMG_IMU',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    if (mounted) {
+      setState(() => _status = 'Lỗi đọc dữ liệu: $error');
+    }
   }
 
   Future<void> _teardownStream([String? reason]) async {
@@ -154,7 +181,7 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
     }
     _characteristic = null;
     if (_isRecording) {
-      _stopRecording();
+      await _stopRecording(autoComplete: true);
     }
     if (reason != null && mounted) {
       setState(() {
@@ -203,14 +230,16 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
       );
     }
 
-    // dev.log(
-    //   'EMG packet -> ${values.map((v) => v.toStringAsFixed(4)).join(', ')}',
-    //   name: 'EMG_IMU',
-    // );
-
     if (!mounted) return;
     setState(() {
       _latestValues = values;
+      if (values.length > _yawIndex) {
+        _applyCubeTransform(
+          roll: values[_rollIndex],
+          pitch: values[_pitchIndex],
+          yaw: values[_yawIndex],
+        );
+      }
       if (values.length > _emgIndex) {
         final clamped = values[_emgIndex]
             .clamp(0, _maxEmgVisualValue)
@@ -226,12 +255,54 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
     });
   }
 
+  double _safeValue(List<double> row, int index) =>
+      index < row.length ? row[index] : 0;
+
+  Future<String?> _exportCsv(List<List<double>> samples) async {
+    if (samples.isEmpty) return null;
+    setState(() => _isSavingCsv = true);
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final ts = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('.', '-');
+      final file = File('${dir.path}/emg_imu_$ts.csv');
+      final buffer = StringBuffer('STT,EMG,Roll,Pitch,Yaw,Time\n');
+      for (var i = 0; i < samples.length; i++) {
+        final row = samples[i];
+        buffer.writeln(
+          '${i + 1},${_safeValue(row, _emgIndex)},${_safeValue(row, _rollIndex)},'
+          '${_safeValue(row, _pitchIndex)},${_safeValue(row, _yawIndex)},${_safeValue(row, _timeIndex)}',
+        );
+      }
+      await file.writeAsString(buffer.toString());
+      return file.path;
+    } catch (e, stack) {
+      dev.log(
+        'Lưu CSV thất bại: $e',
+        name: 'EMG_IMU',
+        error: e,
+        stackTrace: stack,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lưu CSV thất bại: $e')));
+      }
+      return null;
+    } finally {
+      if (mounted) setState(() => _isSavingCsv = false);
+    }
+  }
+
   void _startRecording() {
-    if (_isRecording) return;
+    if (_isRecording || _isSavingCsv) return;
+    _recordedSamples.clear();
+    _lastCsvPath = null;
     setState(() {
       _isRecording = true;
       _recordElapsed = Duration.zero;
-      _recordedSamples.clear();
     });
     _recordTimer?.cancel();
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -245,25 +316,39 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
     });
   }
 
-  void _stopRecording({bool autoComplete = false}) {
+  Future<void> _stopRecording({bool autoComplete = false}) async {
     if (!_isRecording) return;
     _recordTimer?.cancel();
     _recordTimer = null;
-    setState(() {
+
+    final samplesSnapshot = List<List<double>>.from(
+      _recordedSamples.map((e) => List<double>.from(e)),
+    );
+
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        if (!autoComplete) {
+          _recordElapsed = Duration.zero;
+        }
+      });
+    } else {
       _isRecording = false;
-      if (!autoComplete) {
-        _recordElapsed = Duration.zero;
-      }
-    });
-    if (autoComplete && mounted) {
-      final samples = _recordedSamples.length;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã thu $samples mẫu trong ${_formatDuration(_recordDuration)}',
+      if (!autoComplete) _recordElapsed = Duration.zero;
+    }
+
+    if (samplesSnapshot.isNotEmpty) {
+      final path = await _exportCsv(samplesSnapshot);
+      if (mounted && path != null) {
+        _lastCsvPath = path;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã lưu ${samplesSnapshot.length} mẫu vào ${path.split('/').last}',
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -272,6 +357,15 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
     setState(() {
       _recordDuration = Duration(seconds: seconds.round());
     });
+  }
+
+  void _openDataScreen() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DataEmgImuScreen(lastCsvPath: _lastCsvPath),
+      ),
+    );
   }
 
   String _formatDuration(Duration duration) {
@@ -307,6 +401,115 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
 
     final byteData = ByteData(4)..setUint32(0, value);
     return byteData.getFloat32(0);
+  }
+
+  void _applyCubeTransform({double? roll, double? pitch, double? yaw}) {
+    final obj = _imuObject;
+    if (obj == null) return;
+    final r = roll ?? _latestValues[_rollIndex];
+    final p = pitch ?? _latestValues[_pitchIndex];
+    final y = yaw ?? _latestValues[_yawIndex];
+    obj.rotation.setValues(r, y, p);
+    obj.scale.setValues(_cubeScale, _cubeScale, _cubeScale);
+    obj.updateTransform();
+    _cubeScene?.update();
+  }
+
+  Widget _buildImuPreview() {
+    final roll = _latestValues[_rollIndex];
+    final pitch = _latestValues[_pitchIndex];
+    final yaw = _latestValues[_yawIndex];
+
+    return SizedBox(
+      height: 360,
+      child: Card(
+        color: VedcColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.threed_rotation, color: VedcColors.primary),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'IMU Orientation',
+                    style: TextStyle(
+                      fontFamily: 'Livvic',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: GestureDetector(
+                  onScaleStart: (details) {
+                    _scaleStart = _cubeScale;
+                  },
+                  onScaleUpdate: (details) {
+                    final next = (_scaleStart * details.scale).clamp(0.5, 2.0);
+                    setState(() {
+                      _cubeScale = next;
+                      _applyCubeTransform();
+                    });
+                  },
+                  child: Cube(
+                    interactive: false,
+                    onSceneCreated: (scene) {
+                      _cubeScene = scene;
+                      scene.camera.position
+                        ..z = 3.0
+                        ..y = 0.5;
+                      _imuObject ??= Object(
+                        fileName: 'assets/models/imu.obj',
+                        lighting: true,
+                        backfaceCulling: true,
+                      );
+                      if (!scene.world.children.contains(_imuObject)) {
+                        scene.world.add(_imuObject!);
+                      }
+                      _applyCubeTransform(roll: roll, pitch: pitch, yaw: yaw);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text(
+                    'Zoom',
+                    style: TextStyle(
+                      fontFamily: 'Quicksand',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      min: 0.5,
+                      max: 2.0,
+                      divisions: 15,
+                      label: '${_cubeScale.toStringAsFixed(2)}x',
+                      value: _cubeScale.clamp(0.5, 2.0),
+                      onChanged: (value) {
+                        setState(() {
+                          _cubeScale = value;
+                          _applyCubeTransform();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -373,9 +576,11 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
                             ),
                             const SizedBox(height: 8),
                             Expanded(
-                              child: EMGChart(
-                                buffer: List<double>.from(_emgBuffer),
-                                maxSamples: _maxSamples,
+                              child: RepaintBoundary(
+                                child: EMGChart(
+                                  buffer: _emgBuffer,
+                                  maxSamples: _maxSamples,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -417,11 +622,16 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
                     elapsed: _recordElapsed,
                     samples: _recordedSamples.length,
                     isRecording: _isRecording,
+                    isSaving: _isSavingCsv,
+                    lastCsvPath: _lastCsvPath,
                     onDurationChanged: _updateRecordDuration,
                     onStart: _startRecording,
                     onStop: () => _stopRecording(),
+                    onOpenData: _openDataScreen,
                     formatDuration: _formatDuration,
                   ),
+                  const SizedBox(height: 16),
+                  _buildImuPreview(),
                   const SizedBox(height: 16),
                   _buildMetricGrid(constraints.maxWidth),
                 ],
@@ -440,10 +650,10 @@ class _OnEMG_IMUSensorState extends State<OnEMG_IMUSensor> {
         ? 3
         : 2;
     final aspectRatio = maxWidth > 900
-        ? 1.4
+        ? 1.3
         : maxWidth > 600
-        ? 1.2
-        : 0.95;
+        ? 1.15
+        : 1.0;
     final cards = [
       ..._imuLabels.map(
         (label) => _MetricCardData(
@@ -501,71 +711,75 @@ class _ValueCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
           BoxShadow(
-            color: Colors.black26,
-            blurRadius: 16,
-            offset: Offset(0, 10),
+            color: style.gradient.first.withOpacity(0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(style.icon, color: Colors.white, size: 22),
+                child: Icon(style.icon, color: Colors.white, size: 20),
               ),
-              const SizedBox(width: 10),
-              Expanded(
+              const SizedBox(width: 8),
+              Flexible(
                 child: Text(
                   label,
                   style: const TextStyle(
                     color: Colors.white,
                     fontFamily: 'Quicksand',
                     fontWeight: FontWeight.w700,
-                    fontSize: 18,
+                    fontSize: 16,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (style.unit != null)
+              if (style.unit != null) ...[
+                const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: 8,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     style.unit!,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+              ],
             ],
           ),
-          const Spacer(),
           Text(
             value.toStringAsFixed(2),
             style: const TextStyle(
               color: Colors.white,
               fontFamily: 'Livvic',
               fontWeight: FontWeight.w900,
-              fontSize: 30,
+              fontSize: 28,
+              letterSpacing: -0.5,
             ),
           ),
         ],
@@ -580,9 +794,12 @@ class _RecordingPanel extends StatelessWidget {
     required this.elapsed,
     required this.samples,
     required this.isRecording,
+    required this.isSaving,
+    required this.lastCsvPath,
     required this.onDurationChanged,
     required this.onStart,
     required this.onStop,
+    required this.onOpenData,
     required this.formatDuration,
   });
 
@@ -590,9 +807,12 @@ class _RecordingPanel extends StatelessWidget {
   final Duration elapsed;
   final int samples;
   final bool isRecording;
+  final bool isSaving;
+  final String? lastCsvPath;
   final ValueChanged<double> onDurationChanged;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onOpenData;
   final String Function(Duration) formatDuration;
 
   @override
@@ -612,8 +832,15 @@ class _RecordingPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.storage_rounded, color: VedcColors.primary),
-                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: onOpenData,
+                  icon: const Icon(
+                    Icons.storage_rounded,
+                    color: VedcColors.primary,
+                  ),
+                  tooltip: 'Xem danh sách file CSV',
+                ),
+                const SizedBox(width: 4),
                 const Text(
                   'Thu dữ liệu',
                   style: TextStyle(
@@ -624,9 +851,15 @@ class _RecordingPanel extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  isRecording ? 'Đang thu' : 'Sẵn sàng',
+                  isSaving
+                      ? 'Đang lưu...'
+                      : isRecording
+                      ? 'Đang thu'
+                      : 'Sẵn sàng',
                   style: TextStyle(
-                    color: isRecording
+                    color: isSaving
+                        ? Colors.orangeAccent
+                        : isRecording
                         ? Colors.orangeAccent
                         : VedcColors.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -643,13 +876,30 @@ class _RecordingPanel extends StatelessWidget {
               ),
             ),
             Slider(
-              min: 5,
-              max: 180,
-              divisions: 35,
-              value: duration.inSeconds.toDouble().clamp(5, 180),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              value: duration.inSeconds.toDouble().clamp(1, 30),
               label: '${duration.inSeconds}s',
               onChanged: isRecording ? null : onDurationChanged,
             ),
+            Text(
+              'Mẫu đã lưu: $samples',
+              style: const TextStyle(fontFamily: 'Quicksand'),
+            ),
+            if (lastCsvPath != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  'File mới nhất: ${lastCsvPath!.split('/').last}',
+                  style: const TextStyle(
+                    fontFamily: 'Quicksand',
+                    color: VedcColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            const SizedBox(height: 6),
             if (isRecording)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,11 +911,6 @@ class _RecordingPanel extends StatelessWidget {
                     style: const TextStyle(fontFamily: 'Quicksand'),
                   ),
                 ],
-              )
-            else
-              Text(
-                'Mẫu đã lưu: $samples',
-                style: const TextStyle(fontFamily: 'Quicksand'),
               ),
             const SizedBox(height: 12),
             Row(
@@ -680,7 +925,7 @@ class _RecordingPanel extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: isRecording ? null : onStart,
+                    onPressed: (isRecording || isSaving) ? null : onStart,
                     icon: const Icon(Icons.fiber_manual_record),
                     label: const Text('Bắt đầu'),
                   ),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "191966224888",
+    "project_id": "vedc-cloud",
+    "storage_bucket": "vedc-cloud.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:191966224888:android:e0217755f82846560bb60d",
+        "android_client_info": {
+          "package_name": "com.vedc.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAiK8rbIDdk5rcuCsmsUhSHRl2Shnwkqlo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

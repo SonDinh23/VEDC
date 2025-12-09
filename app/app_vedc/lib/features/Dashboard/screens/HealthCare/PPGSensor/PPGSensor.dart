@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:app_vedc/features/Dashboard/Service/MyoBandProcess.dart';
 import 'package:app_vedc/features/Dashboard/Service/bleController.dart';
 import 'package:app_vedc/features/Dashboard/Service/bleService.dart';
 import 'package:app_vedc/features/Dashboard/screens/HealthCare/PPGSensor/widgets/ppg_chart.dart';
+import 'package:app_vedc/features/Dashboard/screens/HealthCare/PPGSensor/data_ppg_screen.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class OnPPGSensor extends StatefulWidget {
   const OnPPGSensor({super.key});
@@ -72,6 +76,8 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
     List<double>.filled(_valueLabels.length, 0),
   );
   final List<List<double>> _recordedSamples = <List<double>>[];
+  bool _isSavingCsv = false;
+  String? _lastCsvPath;
   String _status = 'Đang chuẩn bị kết nối...';
   bool _isInitializing = false;
   bool _isRecording = false;
@@ -124,9 +130,13 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
     final device = BLEController.myoBandDevice;
     if (device == null ||
         BLEController.myoBandState != BluetoothConnectionState.connected) {
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _status = 'MyoBand chưa kết nối';
+        });
+      } else {
         _status = 'MyoBand chưa kết nối';
-      });
+      }
       return;
     }
 
@@ -149,15 +159,24 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
             error: error,
             stackTrace: stackTrace,
           );
-          setState(() => _status = 'Lỗi đọc dữ liệu: $error');
+          if (mounted) {
+            setState(() => _status = 'Lỗi đọc dữ liệu: $error');
+          } else {
+            _status = 'Lỗi đọc dữ liệu: $error';
+          }
         },
       );
       await characteristic.read();
 
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _characteristic = characteristic;
+          _status = 'Đang nhận dữ liệu PPG realtime';
+        });
+      } else {
         _characteristic = characteristic;
         _status = 'Đang nhận dữ liệu PPG realtime';
-      });
+      }
     } catch (e, stackTrace) {
       dev.log(
         'Không thể khởi tạo PPG stream: $e',
@@ -183,7 +202,7 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
     }
     _characteristic = null;
     if (_isRecording) {
-      _stopRecording();
+      await _stopRecording(autoComplete: true);
     }
     if (reason != null && mounted) {
       setState(() {
@@ -276,11 +295,12 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
   }
 
   void _startRecording() {
-    if (_isRecording) return;
+    if (_isRecording || _isSavingCsv) return;
     setState(() {
       _isRecording = true;
       _recordElapsed = Duration.zero;
       _recordedSamples.clear();
+      _lastCsvPath = null;
     });
     _recordTimer?.cancel();
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -294,22 +314,47 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
     });
   }
 
-  void _stopRecording({bool autoComplete = false}) {
+  Future<void> _stopRecording({bool autoComplete = false}) async {
     if (!_isRecording) return;
     _recordTimer?.cancel();
     _recordTimer = null;
+
+    final samplesSnapshot = List<List<double>>.from(
+      _recordedSamples.map((e) => List<double>.from(e)),
+    );
+
+    if (!mounted) {
+      _isRecording = false;
+      if (!autoComplete) {
+        _recordElapsed = Duration.zero;
+      }
+      return;
+    }
+
     setState(() {
       _isRecording = false;
       if (!autoComplete) {
         _recordElapsed = Duration.zero;
       }
     });
-    if (autoComplete && mounted) {
-      final samples = _recordedSamples.length;
+
+    if (samplesSnapshot.isNotEmpty) {
+      final path = await _exportCsv(samplesSnapshot);
+      if (mounted && path != null) {
+        _lastCsvPath = path;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã lưu ${samplesSnapshot.length} mẫu vào ${path.split('/').last}',
+            ),
+          ),
+        );
+      }
+    } else if (autoComplete && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Đã thu $samples mẫu trong ${_formatDuration(_recordDuration)}',
+            'Không có mẫu để lưu (thời gian: ${_formatDuration(_recordDuration)})',
           ),
         ),
       );
@@ -327,6 +372,65 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  double _safeValue(List<double> row, int index) =>
+      index < row.length ? row[index] : 0;
+
+  Future<String?> _exportCsv(List<List<double>> samples) async {
+    if (samples.isEmpty) return null;
+    if (!mounted) return null;
+    setState(() {
+      _isSavingCsv = true;
+    });
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final ts = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('.', '-');
+      final file = File('${dir.path}/ppg_$ts.csv');
+      final buffer = StringBuffer('STT,LEDRed,LEDIR,HeartRate,SpO2,SmO2\n');
+      for (var i = 0; i < samples.length; i++) {
+        final row = samples[i];
+        buffer.writeln(
+          '${i + 1},${_safeValue(row, _redIndex)},${_safeValue(row, _irIndex)},'
+          '${_safeValue(row, _heartRateIndex)},${_safeValue(row, _spo2Index)},${_safeValue(row, _smo2Index)}',
+        );
+      }
+      await file.writeAsString(buffer.toString());
+      return file.path;
+    } catch (e, stack) {
+      dev.log(
+        'Lưu CSV PPG thất bại: $e',
+        name: 'PPG',
+        error: e,
+        stackTrace: stack,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lưu CSV PPG thất bại: $e')));
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingCsv = false;
+        });
+      } else {
+        _isSavingCsv = false;
+      }
+    }
+  }
+
+  void _openDataScreen() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DataPpgScreen(lastCsvPath: _lastCsvPath),
+      ),
+    );
   }
 
   double _halfToFloat(int half) {
@@ -459,9 +563,14 @@ class _OnPPGSensorState extends State<OnPPGSensor> {
                     elapsed: _recordElapsed,
                     samples: _recordedSamples.length,
                     isRecording: _isRecording,
+                    isSaving: _isSavingCsv,
+                    lastCsvPath: _lastCsvPath,
                     onDurationChanged: _updateRecordDuration,
                     onStart: _startRecording,
-                    onStop: () => _stopRecording(),
+                    onStop: () {
+                      _stopRecording();
+                    },
+                    onOpenData: _openDataScreen,
                     formatDuration: _formatDuration,
                   ),
                   const SizedBox(height: 16),
@@ -641,9 +750,12 @@ class _RecordingPanel extends StatelessWidget {
     required this.elapsed,
     required this.samples,
     required this.isRecording,
+    required this.isSaving,
+    required this.lastCsvPath,
     required this.onDurationChanged,
     required this.onStart,
     required this.onStop,
+    required this.onOpenData,
     required this.formatDuration,
   });
 
@@ -651,9 +763,12 @@ class _RecordingPanel extends StatelessWidget {
   final Duration elapsed;
   final int samples;
   final bool isRecording;
+  final bool isSaving;
+  final String? lastCsvPath;
   final ValueChanged<double> onDurationChanged;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onOpenData;
   final String Function(Duration) formatDuration;
 
   @override
@@ -673,8 +788,15 @@ class _RecordingPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.storage_rounded, color: VedcColors.primary),
-                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: onOpenData,
+                  icon: const Icon(
+                    Icons.storage_rounded,
+                    color: VedcColors.primary,
+                  ),
+                  tooltip: 'Xem danh sách file CSV',
+                ),
+                const SizedBox(width: 4),
                 const Text(
                   'Thu dữ liệu',
                   style: TextStyle(
@@ -685,9 +807,15 @@ class _RecordingPanel extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  isRecording ? 'Đang thu' : 'Sẵn sàng',
+                  isSaving
+                      ? 'Đang lưu...'
+                      : isRecording
+                      ? 'Đang thu'
+                      : 'Sẵn sàng',
                   style: TextStyle(
-                    color: isRecording
+                    color: isSaving
+                        ? Colors.orangeAccent
+                        : isRecording
                         ? Colors.orangeAccent
                         : VedcColors.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -704,13 +832,30 @@ class _RecordingPanel extends StatelessWidget {
               ),
             ),
             Slider(
-              min: 5,
-              max: 180,
-              divisions: 35,
-              value: duration.inSeconds.toDouble().clamp(5, 180),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              value: duration.inSeconds.toDouble().clamp(1, 30),
               label: '${duration.inSeconds}s',
               onChanged: isRecording ? null : onDurationChanged,
             ),
+            Text(
+              'Mẫu đã thu: $samples',
+              style: const TextStyle(fontFamily: 'Quicksand'),
+            ),
+            if (lastCsvPath != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  'File mới nhất: ${lastCsvPath!.split('/').last}',
+                  style: const TextStyle(
+                    fontFamily: 'Quicksand',
+                    color: VedcColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            const SizedBox(height: 6),
             if (isRecording)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -722,11 +867,6 @@ class _RecordingPanel extends StatelessWidget {
                     style: const TextStyle(fontFamily: 'Quicksand'),
                   ),
                 ],
-              )
-            else
-              Text(
-                'Mẫu đã lưu: $samples',
-                style: const TextStyle(fontFamily: 'Quicksand'),
               ),
             const SizedBox(height: 12),
             Row(
@@ -741,7 +881,7 @@ class _RecordingPanel extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: isRecording ? null : onStart,
+                    onPressed: (isRecording || isSaving) ? null : onStart,
                     icon: const Icon(Icons.fiber_manual_record),
                     label: const Text('Bắt đầu'),
                   ),

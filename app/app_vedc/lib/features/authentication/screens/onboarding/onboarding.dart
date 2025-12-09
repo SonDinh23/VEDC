@@ -5,12 +5,8 @@ import 'package:app_vedc/features/authentication/screens/onboarding/widgets/onbo
 import 'package:app_vedc/features/authentication/screens/onboarding/widgets/onboarding_skip.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:get/get.dart';
-import 'package:iconsax/iconsax.dart';
-import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:app_vedc/utils/constants/image_strings.dart';
-import 'package:app_vedc/utils/constants/sizes.dart';
 import 'package:app_vedc/utils/constants/text_strings.dart';
-import 'package:app_vedc/utils/helpers/helper_function.dart';
 import 'package:flutter/material.dart';
 
 class OnBoardingScreen extends StatelessWidget {
@@ -21,6 +17,7 @@ class OnBoardingScreen extends StatelessWidget {
     final controller = Get.put(OnBoardingController());
 
     return Scaffold(
+      backgroundColor: VedcColors.background,
       body: Stack(
         children: [
           /// Horizontal Scrollable Pages

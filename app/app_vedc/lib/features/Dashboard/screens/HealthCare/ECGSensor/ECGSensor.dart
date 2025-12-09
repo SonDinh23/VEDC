@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:app_vedc/features/Dashboard/Service/MyoBandProcess.dart';
 import 'package:app_vedc/features/Dashboard/Service/bleController.dart';
 import 'package:app_vedc/features/Dashboard/Service/bleService.dart';
 import 'package:app_vedc/features/Dashboard/screens/HealthCare/ECGSensor/widgets/ecg_chart.dart';
+import 'package:app_vedc/features/Dashboard/screens/HealthCare/ECGSensor/data_ecg_screen.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 class OnECGSensor extends StatefulWidget {
   const OnECGSensor({super.key});
@@ -61,6 +64,8 @@ class _OnECGSensorState extends State<OnECGSensor> {
     List<double>.filled(_valueLabels.length, 0),
   );
   final List<List<double>> _recordedSamples = <List<double>>[];
+  bool _isSavingCsv = false;
+  String? _lastCsvPath;
   String _status = 'Đang chuẩn bị kết nối...';
   bool _isInitializing = false;
   bool _isRecording = false;
@@ -113,9 +118,13 @@ class _OnECGSensorState extends State<OnECGSensor> {
     final device = BLEController.myoBandDevice;
     if (device == null ||
         BLEController.myoBandState != BluetoothConnectionState.connected) {
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _status = 'MyoBand chưa kết nối';
+        });
+      } else {
         _status = 'MyoBand chưa kết nối';
-      });
+      }
       return;
     }
 
@@ -138,15 +147,24 @@ class _OnECGSensorState extends State<OnECGSensor> {
             error: error,
             stackTrace: stackTrace,
           );
-          setState(() => _status = 'Lỗi đọc dữ liệu: $error');
+          if (mounted) {
+            setState(() => _status = 'Lỗi đọc dữ liệu: $error');
+          } else {
+            _status = 'Lỗi đọc dữ liệu: $error';
+          }
         },
       );
       await characteristic.read();
 
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _characteristic = characteristic;
+          _status = 'Đang nhận dữ liệu ECG realtime';
+        });
+      } else {
         _characteristic = characteristic;
         _status = 'Đang nhận dữ liệu ECG realtime';
-      });
+      }
     } catch (e, stackTrace) {
       dev.log(
         'Không thể khởi tạo ECG stream: $e',
@@ -172,7 +190,7 @@ class _OnECGSensorState extends State<OnECGSensor> {
     }
     _characteristic = null;
     if (_isRecording) {
-      _stopRecording();
+      await _stopRecording(autoComplete: true);
     }
     if (reason != null && mounted) {
       setState(() {
@@ -257,11 +275,12 @@ class _OnECGSensorState extends State<OnECGSensor> {
   }
 
   void _startRecording() {
-    if (_isRecording) return;
+    if (_isRecording || _isSavingCsv) return;
     setState(() {
       _isRecording = true;
       _recordElapsed = Duration.zero;
       _recordedSamples.clear();
+      _lastCsvPath = null;
     });
     _recordTimer?.cancel();
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -275,22 +294,47 @@ class _OnECGSensorState extends State<OnECGSensor> {
     });
   }
 
-  void _stopRecording({bool autoComplete = false}) {
+  Future<void> _stopRecording({bool autoComplete = false}) async {
     if (!_isRecording) return;
     _recordTimer?.cancel();
     _recordTimer = null;
+
+    final samplesSnapshot = List<List<double>>.from(
+      _recordedSamples.map((e) => List<double>.from(e)),
+    );
+
+    if (!mounted) {
+      _isRecording = false;
+      if (!autoComplete) {
+        _recordElapsed = Duration.zero;
+      }
+      return;
+    }
+
     setState(() {
       _isRecording = false;
       if (!autoComplete) {
         _recordElapsed = Duration.zero;
       }
     });
-    if (autoComplete && mounted) {
-      final samples = _recordedSamples.length;
+
+    if (samplesSnapshot.isNotEmpty) {
+      final path = await _exportCsv(samplesSnapshot);
+      if (mounted && path != null) {
+        _lastCsvPath = path;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã lưu ${samplesSnapshot.length} mẫu vào ${path.split('/').last}',
+            ),
+          ),
+        );
+      }
+    } else if (autoComplete && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Đã thu $samples mẫu trong ${_formatDuration(_recordDuration)}',
+            'Không có mẫu để lưu (thời gian: ${_formatDuration(_recordDuration)})',
           ),
         ),
       );
@@ -337,6 +381,67 @@ class _OnECGSensorState extends State<OnECGSensor> {
 
     final byteData = ByteData(4)..setUint32(0, value);
     return byteData.getFloat32(0);
+  }
+
+  double _safeValue(List<double> row, int index) =>
+      index < row.length ? row[index] : 0;
+
+  Future<String?> _exportCsv(List<List<double>> samples) async {
+    if (samples.isEmpty) return null;
+    if (!mounted) return null;
+    setState(() {
+      _isSavingCsv = true;
+    });
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final ts = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('.', '-');
+      final file = File('${dir.path}/ecg_$ts.csv');
+      final buffer = StringBuffer(
+        'STT,LeadOffPlus,LeadOffMinus,Analog,HeartRate\n',
+      );
+      for (var i = 0; i < samples.length; i++) {
+        final row = samples[i];
+        buffer.writeln(
+          '${i + 1},${_safeValue(row, _loPositiveIndex)},${_safeValue(row, _loNegativeIndex)},'
+          '${_safeValue(row, _analogIndex)},${_safeValue(row, _heartRateIndex)}',
+        );
+      }
+      await file.writeAsString(buffer.toString());
+      return file.path;
+    } catch (e, stack) {
+      dev.log(
+        'Lưu CSV ECG thất bại: $e',
+        name: 'ECG',
+        error: e,
+        stackTrace: stack,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lưu CSV ECG thất bại: $e')));
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingCsv = false;
+        });
+      } else {
+        _isSavingCsv = false;
+      }
+    }
+  }
+
+  void _openDataScreen() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DataEcgScreen(lastCsvPath: _lastCsvPath),
+      ),
+    );
   }
 
   @override
@@ -435,9 +540,14 @@ class _OnECGSensorState extends State<OnECGSensor> {
                     elapsed: _recordElapsed,
                     samples: _recordedSamples.length,
                     isRecording: _isRecording,
+                    isSaving: _isSavingCsv,
+                    lastCsvPath: _lastCsvPath,
                     onDurationChanged: _updateRecordDuration,
                     onStart: _startRecording,
-                    onStop: () => _stopRecording(),
+                    onStop: () {
+                      _stopRecording();
+                    },
+                    onOpenData: _openDataScreen,
                     formatDuration: _formatDuration,
                   ),
                   const SizedBox(height: 16),
@@ -463,10 +573,10 @@ class _OnECGSensorState extends State<OnECGSensor> {
         ? 3
         : 2;
     final aspectRatio = maxWidth > 900
-        ? 1.4
+        ? 1.3
         : maxWidth > 600
-        ? 1.2
-        : 0.9;
+        ? 1.15
+        : 1.0;
 
     final hr = values[_heartRateIndex];
     final analog = values[_analogIndex];
@@ -500,8 +610,8 @@ class _OnECGSensorState extends State<OnECGSensor> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: 15,
+        mainAxisSpacing: 15,
         childAspectRatio: aspectRatio,
       ),
       itemCount: cards.length,
@@ -526,71 +636,79 @@ class _ValueCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
           BoxShadow(
-            color: Colors.black26,
-            blurRadius: 16,
-            offset: Offset(0, 10),
+            color: data.style.gradient.first.withOpacity(0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(data.style.icon, color: Colors.white, size: 22),
+                child: Icon(data.style.icon, color: Colors.white, size: 20),
               ),
-              const SizedBox(width: 10),
-              Expanded(
+              const SizedBox(width: 8),
+              Flexible(
                 child: Text(
                   data.label,
                   style: const TextStyle(
                     color: Colors.white,
                     fontFamily: 'Quicksand',
                     fontWeight: FontWeight.w700,
-                    fontSize: 18,
+                    fontSize: 14,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  softWrap: false,
                 ),
               ),
-              if (data.unit != null)
+              if (data.unit != null) ...[
+                const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: 8,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     data.unit!,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+              ],
             ],
           ),
-          const Spacer(),
           Text(
             data.valueText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
               fontFamily: 'Livvic',
               fontWeight: FontWeight.w900,
-              fontSize: 28,
+              fontSize: 25,
+              letterSpacing: -0.5,
             ),
           ),
         ],
@@ -605,9 +723,12 @@ class _RecordingPanel extends StatelessWidget {
     required this.elapsed,
     required this.samples,
     required this.isRecording,
+    required this.isSaving,
+    required this.lastCsvPath,
     required this.onDurationChanged,
     required this.onStart,
     required this.onStop,
+    required this.onOpenData,
     required this.formatDuration,
   });
 
@@ -615,9 +736,12 @@ class _RecordingPanel extends StatelessWidget {
   final Duration elapsed;
   final int samples;
   final bool isRecording;
+  final bool isSaving;
+  final String? lastCsvPath;
   final ValueChanged<double> onDurationChanged;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onOpenData;
   final String Function(Duration) formatDuration;
 
   @override
@@ -637,8 +761,15 @@ class _RecordingPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.storage_rounded, color: VedcColors.primary),
-                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: onOpenData,
+                  icon: const Icon(
+                    Icons.storage_rounded,
+                    color: VedcColors.primary,
+                  ),
+                  tooltip: 'Xem danh sách file CSV',
+                ),
+                const SizedBox(width: 4),
                 const Text(
                   'Thu dữ liệu',
                   style: TextStyle(
@@ -649,9 +780,15 @@ class _RecordingPanel extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  isRecording ? 'Đang thu' : 'Sẵn sàng',
+                  isSaving
+                      ? 'Đang lưu...'
+                      : isRecording
+                      ? 'Đang thu'
+                      : 'Sẵn sàng',
                   style: TextStyle(
-                    color: isRecording
+                    color: isSaving
+                        ? Colors.orangeAccent
+                        : isRecording
                         ? Colors.orangeAccent
                         : VedcColors.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -668,13 +805,30 @@ class _RecordingPanel extends StatelessWidget {
               ),
             ),
             Slider(
-              min: 5,
-              max: 180,
-              divisions: 35,
-              value: duration.inSeconds.toDouble().clamp(5, 180),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              value: duration.inSeconds.toDouble().clamp(1, 30),
               label: '${duration.inSeconds}s',
               onChanged: isRecording ? null : onDurationChanged,
             ),
+            Text(
+              'Mẫu đã thu: $samples',
+              style: const TextStyle(fontFamily: 'Quicksand'),
+            ),
+            if (lastCsvPath != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  'File mới nhất: ${lastCsvPath!.split('/').last}',
+                  style: const TextStyle(
+                    fontFamily: 'Quicksand',
+                    color: VedcColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            const SizedBox(height: 6),
             if (isRecording)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,11 +840,6 @@ class _RecordingPanel extends StatelessWidget {
                     style: const TextStyle(fontFamily: 'Quicksand'),
                   ),
                 ],
-              )
-            else
-              Text(
-                'Mẫu đã lưu: $samples',
-                style: const TextStyle(fontFamily: 'Quicksand'),
               ),
             const SizedBox(height: 12),
             Row(
@@ -705,7 +854,7 @@ class _RecordingPanel extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: isRecording ? null : onStart,
+                    onPressed: (isRecording || isSaving) ? null : onStart,
                     icon: const Icon(Icons.fiber_manual_record),
                     label: const Text('Bắt đầu'),
                   ),

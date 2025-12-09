@@ -1,0 +1,37 @@
+# Simple cube model for IMU orientation visualization
+# 6 faces with 6 different colors
+
+mtllib imu.mtl
+
+v -0.5 -0.5 -0.5
+v  0.5 -0.5 -0.5
+v  0.5  0.5 -0.5
+v -0.5  0.5 -0.5
+v -0.5 -0.5  0.5
+v  0.5 -0.5  0.5
+v  0.5  0.5  0.5
+v -0.5  0.5  0.5
+
+# Front face -> Red
+usemtl matRed
+f 5 6 7 8
+
+# Back face -> Purple
+usemtl matPurple
+f 1 4 3 2
+
+# Left face -> Blue
+usemtl matBlue
+f 1 5 8 4
+
+# Right face -> Yellow
+usemtl matYellow
+f 2 3 7 6
+
+# Top face -> Green
+usemtl matGreen
+f 4 8 7 3
+
+# Bottom face -> Orange
+usemtl matOrange
+f 1 2 6 5

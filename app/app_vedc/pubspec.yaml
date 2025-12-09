@@ -26,10 +26,20 @@ dependencies:
   # Image Picker
   flutter_svg: ^2.2.3
 
+  # 3D hiển thị roll/pitch/yaw
+  flutter_cube: ^0.1.1
+
   # State Management
   get: ^4.7.2
   get_storage: ^2.1.1
   shared_preferences: ^2.5.3
+  # Firebase (aligned)
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
+  flutter_email_sender: ^8.0.0
+  share_plus: ^10.1.4
 
 #-----------------------./ PACKAGES END -----------------------#
 
@@ -50,9 +60,11 @@ flutter:
   assets:
     - assets/images/logos/
     - assets/images/on_boarding_images/
+    - assets/images/devices/
     - assets/icons/Normals/
     - assets/icons/Socials/
     - assets/images/layouts/followHealthy/
+    - assets/models/
   fonts:
     - family: Livvic
       fonts:

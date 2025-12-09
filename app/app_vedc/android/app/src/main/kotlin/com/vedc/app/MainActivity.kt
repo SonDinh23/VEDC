@@ -1,4 +1,4 @@
-package com.example.app_vedc
+package com.vedc.app
 
 import io.flutter.embedding.android.FlutterActivity
 
