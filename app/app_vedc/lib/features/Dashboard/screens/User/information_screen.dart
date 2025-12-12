@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_vedc/utils/constants/colors.dart';
 import 'package:app_vedc/utils/constants/sizes.dart';
 import 'package:get/get.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class InformationScreen extends StatefulWidget {
   const InformationScreen({super.key});
@@ -27,7 +29,12 @@ class _InformationScreenState extends State<InformationScreen> {
   void initState() {
     super.initState();
     _attachFocusListeners();
-    _loadFromPrefs();
+    _loadInitial();
+  }
+
+  Future<void> _loadInitial() async {
+    await _loadFromPrefs();
+    await _loadFromFirestoreIfNeeded();
   }
 
   void _attachFocusListeners() {
@@ -49,12 +56,87 @@ class _InformationScreenState extends State<InformationScreen> {
 
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    final user = FirebaseAuth.instance.currentUser;
+    final prefName = prefs.getString('user_fullName');
+    final prefEmail = prefs.getString('user_email');
+    final fallbackName = user?.displayName?.trim();
+    final fallbackEmail = user?.email?.trim();
+
     setState(() {
-      _nameController.text = prefs.getString('user_fullName') ?? 'Your name';
+      _nameController.text = (prefName != null && prefName.trim().isNotEmpty)
+          ? prefName
+          : (fallbackName?.isNotEmpty == true ? fallbackName! : 'Your name');
       _dobController.text = prefs.getString('user_dob') ?? '';
       _addressController.text = prefs.getString('user_address') ?? '';
-      _emailController.text = prefs.getString('user_email') ?? '';
+      _emailController.text = (prefEmail != null && prefEmail.trim().isNotEmpty)
+          ? prefEmail
+          : (fallbackEmail ?? '');
     });
+  }
+
+  bool _isMeaningful(String? value) => value != null && value.trim().isNotEmpty;
+
+  Future<void> _loadFromFirestoreIfNeeded() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get(const GetOptions(source: Source.serverAndCache));
+      if (!snapshot.exists) return;
+      final data = snapshot.data();
+      if (data == null) return;
+
+      final remoteName = data['fullName'] as String?;
+      final remoteDob = data['dob'] as String?;
+      final remoteAddress = data['address'] as String?;
+      final remoteEmail = data['email'] as String?;
+
+      final shouldUpdateName =
+          !_isMeaningful(_nameController.text) ||
+          _nameController.text.trim() == 'Your name';
+      final shouldUpdateEmail = !_isMeaningful(_emailController.text);
+      final shouldUpdateDob = !_isMeaningful(_dobController.text);
+      final shouldUpdateAddress = !_isMeaningful(_addressController.text);
+
+      if (shouldUpdateName ||
+          shouldUpdateEmail ||
+          shouldUpdateDob ||
+          shouldUpdateAddress) {
+        setState(() {
+          if (shouldUpdateName && _isMeaningful(remoteName)) {
+            _nameController.text = remoteName!.trim();
+          }
+          if (shouldUpdateEmail && _isMeaningful(remoteEmail)) {
+            _emailController.text = remoteEmail!.trim();
+          }
+          if (shouldUpdateDob && remoteDob != null) {
+            _dobController.text = remoteDob;
+          }
+          if (shouldUpdateAddress && _isMeaningful(remoteAddress)) {
+            _addressController.text = remoteAddress!.trim();
+          }
+        });
+        // Cache to prefs so subsequent opens are instant.
+        final prefs = await SharedPreferences.getInstance();
+        if (_isMeaningful(_nameController.text)) {
+          await prefs.setString('user_fullName', _nameController.text.trim());
+        }
+        if (_isMeaningful(_emailController.text)) {
+          await prefs.setString('user_email', _emailController.text.trim());
+        }
+        if (_isMeaningful(_dobController.text)) {
+          await prefs.setString('user_dob', _dobController.text.trim());
+        }
+        if (_isMeaningful(_addressController.text)) {
+          await prefs.setString('user_address', _addressController.text.trim());
+        }
+      }
+    } catch (e) {
+      // Ignore silently; offline or missing doc should not break UI.
+    }
   }
 
   Future<void> _saveAllFields() async {
